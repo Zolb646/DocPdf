@@ -1,0 +1,33 @@
+services:
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    restart: unless-stopped
+
+  back-end:
+    build:
+      context: ./back-end
+    environment:
+      PORT: 8787
+      GOTENBERG_URL: ${GOTENBERG_URL:-http://gotenberg:3000}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+      MAX_UPLOAD_SIZE_BYTES: ${MAX_UPLOAD_SIZE_BYTES:-26214400}
+      REQUEST_TIMEOUT_MS: ${REQUEST_TIMEOUT_MS:-60000}
+    depends_on:
+      - gotenberg
+    ports:
+      - "8787:8787"
+    restart: unless-stopped
+
+  front-end:
+    build:
+      context: ./front-end
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8787}
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8787}
+    depends_on:
+      - back-end
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
