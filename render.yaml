@@ -8,6 +8,19 @@ services:
     healthCheckPath: /health
     plan: free
     autoDeployTrigger: off
+    envVars:
+      - key: API_PORT_FROM_ENV
+        value: PORT
+      - key: API_START_TIMEOUT
+        value: 60s
+      - key: CHROMIUM_AUTO_START
+        value: "true"
+      - key: CHROMIUM_START_TIMEOUT
+        value: 60s
+      - key: LIBREOFFICE_AUTO_START
+        value: "true"
+      - key: LIBREOFFICE_START_TIMEOUT
+        value: 60s
 
   - type: web
     name: docpdf-backend

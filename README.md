@@ -80,6 +80,8 @@ Notes:
 - Render's docs note that free web services cannot receive private-network traffic, which is why this setup does not use `fromService.hostport`.
 - The backend accepts either a full URL like `https://service.onrender.com` or a Render-style internal `host:port`.
 - The backend CORS setting now supports multiple origins and wildcard subdomains like `https://*.vercel.app`.
+- The Gotenberg Blueprint sets `API_PORT_FROM_ENV=PORT` so it binds to Render's runtime port instead of assuming port `3000`.
+- The Gotenberg Blueprint also enables `CHROMIUM_AUTO_START` and `LIBREOFFICE_AUTO_START` with longer startup timeouts so `/health` is more likely to pass on slow free instances.
 - Free Render web services spin down on idle, so expect cold starts for both the API and Gotenberg.
 - This is fine for hobby/testing, but Gotenberg is publicly reachable in this setup.
 
