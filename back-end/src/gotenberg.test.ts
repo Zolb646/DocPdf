@@ -1,8 +1,27 @@
 import { describe, expect, it } from "bun:test";
 
+import { AppError } from "./errors";
 import { GotenbergClient } from "./gotenberg";
 
-function createClient() {
+type FetchHandler = (
+  input: string | URL | Request,
+  init?: RequestInit,
+) => Promise<Response>;
+
+async function expectAppError(
+  promise: Promise<unknown>,
+  expected: { status: number; code: string; message: string },
+) {
+  try {
+    await promise;
+    throw new Error("Expected conversion to fail.");
+  } catch (error) {
+    expect(error).toBeInstanceOf(AppError);
+    expect(error).toMatchObject(expected);
+  }
+}
+
+function createClient(fetchHandler?: FetchHandler) {
   const calls: RequestInit[] = [];
   const client = new GotenbergClient({
     baseUrl: "http://gotenberg:3000",
@@ -14,8 +33,12 @@ function createClient() {
       failOnResourceLoadingFailed: false,
     },
     timeoutMs: 60_000,
-    fetchImpl: async (_input, init) => {
+    fetchImpl: async (input, init) => {
       calls.push(init ?? {});
+
+      if (fetchHandler) {
+        return fetchHandler(input, init);
+      }
 
       return new Response("%PDF-1.7", {
         status: 200,
@@ -98,5 +121,66 @@ describe("GotenbergClient Chromium defaults", () => {
     expect(formData.get("skipNetworkAlmostIdleEvent")).toBeNull();
     expect(formData.get("waitDelay")).toBeNull();
     expect(formData.get("failOnResourceLoadingFailed")).toBeNull();
+  });
+
+  it("normalizes HTML renderer failures from 5xx responses", async () => {
+    const { client } = createClient(async () => {
+      return new Response("<!doctype html><html><body>renderer down</body></html>", {
+        status: 500,
+        headers: {
+          "Content-Type": "text/html",
+        },
+      });
+    });
+
+    await expectAppError(
+      client.convertUrl("https://example.com", "trace-123", "example"),
+      {
+        status: 503,
+        code: "RENDERER_UNAVAILABLE",
+        message:
+          "The PDF renderer is unavailable right now. Please try again in a moment.",
+      },
+    );
+  });
+
+  it("normalizes HTML renderer failures from 4xx responses", async () => {
+    const { client } = createClient(async () => {
+      return new Response("<html><body>bad request</body></html>", {
+        status: 400,
+        headers: {
+          "Content-Type": "text/html",
+        },
+      });
+    });
+    const file = new File(["<html></html>"], "index.html", { type: "text/html" });
+
+    await expectAppError(client.convertHtml([file], "trace-123", "example"), {
+      status: 400,
+      code: "CONVERSION_FAILED",
+      message:
+        "The renderer could not process this file or page. Check the input and try again.",
+    });
+  });
+
+  it("normalizes plain-text renderer failures to friendly copy", async () => {
+    const { client } = createClient(async () => {
+      return new Response("invalid office conversion payload", {
+        status: 422,
+        headers: {
+          "Content-Type": "text/plain",
+        },
+      });
+    });
+    const file = new File(["hello"], "document.docx", {
+      type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    });
+
+    await expectAppError(client.convertOffice(file, "trace-123", "example"), {
+      status: 400,
+      code: "CONVERSION_FAILED",
+      message:
+        "The renderer could not process this file or page. Check the input and try again.",
+    });
   });
 });

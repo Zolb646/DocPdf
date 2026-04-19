@@ -28,17 +28,14 @@ export interface GotenbergClientOptions {
   chromium: ChromiumRenderDefaults;
 }
 
+const RENDERER_UNAVAILABLE_MESSAGE =
+  "The PDF renderer is unavailable right now. Please try again in a moment.";
+
+const RENDERER_INPUT_ERROR_MESSAGE =
+  "The renderer could not process this file or page. Check the input and try again.";
+
 function trimPdfExtension(value: string): string {
   return value.replace(/\.pdf$/i, "");
-}
-
-async function readErrorText(response: Response): Promise<string> {
-  try {
-    const text = (await response.text()).trim();
-    return text || "Conversion failed in the PDF renderer.";
-  } catch {
-    return "Conversion failed in the PDF renderer.";
-  }
 }
 
 export class GotenbergClient {
@@ -183,17 +180,17 @@ export class GotenbergClient {
       throw new AppError(
         503,
         "RENDERER_UNAVAILABLE",
-        "The PDF renderer is unavailable right now. Please try again in a moment.",
+        RENDERER_UNAVAILABLE_MESSAGE,
       );
     }
 
     if (!response.ok) {
-      const message = await readErrorText(response);
-
       throw new AppError(
         response.status >= 500 ? 503 : 400,
         response.status >= 500 ? "RENDERER_UNAVAILABLE" : "CONVERSION_FAILED",
-        message,
+        response.status >= 500
+          ? RENDERER_UNAVAILABLE_MESSAGE
+          : RENDERER_INPUT_ERROR_MESSAGE,
       );
     }
 
