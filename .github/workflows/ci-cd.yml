@@ -1,0 +1,278 @@
+name: CI/CD
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/**"
+      - "back-end/**"
+      - "front-end/**"
+      - "gotenberg/**"
+      - "render.yaml"
+      - "docker-compose.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/**"
+      - "back-end/**"
+      - "front-end/**"
+      - "gotenberg/**"
+      - "render.yaml"
+      - "docker-compose.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-cd-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.detect.outputs.backend }}
+      frontend: ${{ steps.detect.outputs.frontend }}
+      gotenberg: ${{ steps.detect.outputs.gotenberg }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed areas
+        id: detect
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "backend=true" >> "$GITHUB_OUTPUT"
+            echo "frontend=true" >> "$GITHUB_OUTPUT"
+            echo "gotenberg=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            base="${{ github.event.pull_request.base.sha }}"
+            head="${{ github.event.pull_request.head.sha }}"
+          else
+            head="${{ github.sha }}"
+            if [[ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]]; then
+              base="${{ github.event.before }}"
+            else
+              base="$(git rev-list --max-parents=0 HEAD)"
+            fi
+          fi
+
+          changed_files="$(git diff --name-only "$base" "$head" || true)"
+
+          printf 'Changed files between %s and %s:\n%s\n' "$base" "$head" "$changed_files"
+
+          backend=false
+          frontend=false
+          gotenberg=false
+
+          while IFS= read -r file; do
+            [[ -z "$file" ]] && continue
+
+            case "$file" in
+              back-end/*|docker-compose.yml|render.yaml|.github/workflows/*)
+                backend=true
+                ;;
+            esac
+
+            case "$file" in
+              front-end/*|.github/workflows/*)
+                frontend=true
+                ;;
+            esac
+
+            case "$file" in
+              gotenberg/*|render.yaml|.github/workflows/*)
+                gotenberg=true
+                ;;
+            esac
+          done <<< "$changed_files"
+
+          echo "backend=$backend" >> "$GITHUB_OUTPUT"
+          echo "frontend=$frontend" >> "$GITHUB_OUTPUT"
+          echo "gotenberg=$gotenberg" >> "$GITHUB_OUTPUT"
+
+  backend-ci:
+    name: Back-end CI
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    defaults:
+      run:
+        working-directory: back-end
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.9
+
+      - name: Install dependencies
+        run: bun ci
+
+      - name: Run tests
+        run: bun test
+
+      - name: Typecheck
+        run: bun run typecheck
+
+  frontend-ci:
+    name: Front-end CI
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    defaults:
+      run:
+        working-directory: front-end
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.9
+
+      - name: Install dependencies
+        run: bun ci
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Build
+        run: bun run build
+
+  deploy-config:
+    name: Resolve deploy configuration
+    runs-on: ubuntu-latest
+    needs: changes
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    outputs:
+      has_render_backend_hook: ${{ steps.flags.outputs.has_render_backend_hook }}
+      has_render_gotenberg_hook: ${{ steps.flags.outputs.has_render_gotenberg_hook }}
+      has_vercel_config: ${{ steps.flags.outputs.has_vercel_config }}
+    steps:
+      - name: Detect available deployment secrets
+        id: flags
+        shell: bash
+        env:
+          RENDER_BACKEND_DEPLOY_HOOK_URL: ${{ secrets.RENDER_BACKEND_DEPLOY_HOOK_URL }}
+          RENDER_GOTENBERG_DEPLOY_HOOK_URL: ${{ secrets.RENDER_GOTENBERG_DEPLOY_HOOK_URL }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+
+          if [[ -n "${RENDER_BACKEND_DEPLOY_HOOK_URL}" ]]; then
+            echo "has_render_backend_hook=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_render_backend_hook=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if [[ -n "${RENDER_GOTENBERG_DEPLOY_HOOK_URL}" ]]; then
+            echo "has_render_gotenberg_hook=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_render_gotenberg_hook=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if [[ -n "${VERCEL_TOKEN}" && -n "${VERCEL_ORG_ID}" && -n "${VERCEL_PROJECT_ID}" ]]; then
+            echo "has_vercel_config=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_vercel_config=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  deploy-render-backend:
+    name: Deploy Render back-end
+    runs-on: ubuntu-latest
+    needs:
+      - changes
+      - backend-ci
+      - deploy-config
+    if: >
+      github.event_name != 'pull_request' &&
+      github.ref == 'refs/heads/main' &&
+      needs.changes.outputs.backend == 'true' &&
+      needs.deploy-config.outputs.has_render_backend_hook == 'true'
+    steps:
+      - name: Trigger Render back-end deploy for this commit
+        shell: bash
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_BACKEND_DEPLOY_HOOK_URL }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --request POST \
+            "${RENDER_DEPLOY_HOOK_URL}?ref=${GITHUB_SHA}"
+
+  deploy-render-gotenberg:
+    name: Deploy Render Gotenberg
+    runs-on: ubuntu-latest
+    needs:
+      - changes
+      - deploy-config
+    if: >
+      github.event_name != 'pull_request' &&
+      github.ref == 'refs/heads/main' &&
+      needs.changes.outputs.gotenberg == 'true' &&
+      needs.deploy-config.outputs.has_render_gotenberg_hook == 'true'
+    steps:
+      - name: Trigger Render Gotenberg deploy for this commit
+        shell: bash
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_GOTENBERG_DEPLOY_HOOK_URL }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --request POST \
+            "${RENDER_DEPLOY_HOOK_URL}?ref=${GITHUB_SHA}"
+
+  deploy-vercel-frontend:
+    name: Deploy Vercel front-end
+    runs-on: ubuntu-latest
+    needs:
+      - changes
+      - frontend-ci
+      - deploy-config
+    if: >
+      github.event_name != 'pull_request' &&
+      github.ref == 'refs/heads/main' &&
+      needs.changes.outputs.frontend == 'true' &&
+      needs.deploy-config.outputs.has_vercel_config == 'true'
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    defaults:
+      run:
+        working-directory: front-end
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.9
+
+      - name: Install dependencies
+        run: bun ci
+
+      - name: Pull Vercel project settings
+        run: bunx vercel@latest pull --yes --environment=production --token="$VERCEL_TOKEN"
+
+      - name: Build Vercel artifacts
+        run: bunx vercel@latest build --prod --token="$VERCEL_TOKEN"
+
+      - name: Deploy to Vercel production
+        run: bunx vercel@latest deploy --prebuilt --prod --token="$VERCEL_TOKEN"

@@ -16,7 +16,7 @@ function createConfig(tempRoot: string): AppConfig {
   return {
     port: 8787,
     gotenbergUrl: "http://gotenberg:3000",
-    corsOrigin: "http://localhost:3000",
+    corsOrigins: ["http://localhost:3000"],
     maxUploadSizeBytes: 25 * 1024 * 1024,
     requestTimeoutMs: 60_000,
     tempRoot,
@@ -184,5 +184,54 @@ describe("DocPDF API", () => {
         status: 200,
       },
     });
+  });
+
+  it("allows configured CORS origins", async () => {
+    const tempRoot = await createTempRoot();
+    tempRoots.push(tempRoot);
+    const config = createConfig(tempRoot);
+    config.corsOrigins = [
+      "http://localhost:3000",
+      "https://docpdf.vercel.app",
+      "https://*.vercel.app",
+    ];
+
+    const app = createApp(config, {
+      gotenbergFetch: async () =>
+        new Response(JSON.stringify({ status: "up" }), {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }),
+    });
+
+    const exactResponse = await app.request("/api/health", {
+      headers: {
+        Origin: "https://docpdf.vercel.app",
+      },
+    });
+
+    expect(exactResponse.headers.get("access-control-allow-origin")).toBe(
+      "https://docpdf.vercel.app",
+    );
+
+    const wildcardResponse = await app.request("/api/health", {
+      headers: {
+        Origin: "https://docpdf-git-feature-user.vercel.app",
+      },
+    });
+
+    expect(wildcardResponse.headers.get("access-control-allow-origin")).toBe(
+      "https://docpdf-git-feature-user.vercel.app",
+    );
+
+    const blockedResponse = await app.request("/api/health", {
+      headers: {
+        Origin: "https://evil.example.com",
+      },
+    });
+
+    expect(blockedResponse.headers.get("access-control-allow-origin")).toBeNull();
   });
 });
