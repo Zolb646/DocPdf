@@ -154,6 +154,30 @@ jobs:
       - name: Build
         run: bun run build
 
+  font-smoke:
+    name: Font Smoke
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.gotenberg == 'true'
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.9
+
+      - name: Install poppler-utils
+        run: sudo apt-get update && sudo apt-get install -y poppler-utils
+
+      - name: Install back-end dependencies
+        working-directory: back-end
+        run: bun ci
+
+      - name: Run font smoke test
+        run: bash ./scripts/smoke-font-fixtures.sh
+
   deploy-config:
     name: Resolve deploy configuration
     runs-on: ubuntu-latest

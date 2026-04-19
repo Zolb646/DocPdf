@@ -28,6 +28,7 @@ export function createAppServices(
 ): AppServices {
   const gotenberg = new GotenbergClient({
     baseUrl: config.gotenbergUrl,
+    chromium: config.chromium,
     fetchImpl: dependencies.gotenbergFetch,
     timeoutMs: config.requestTimeoutMs,
   });

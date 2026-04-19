@@ -1,6 +1,11 @@
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
+import type {
+  ChromiumEmulatedMediaType,
+  ChromiumRenderDefaults,
+} from "./gotenberg";
+
 export interface AppConfig {
   port: number;
   gotenbergUrl: string;
@@ -8,6 +13,7 @@ export interface AppConfig {
   maxUploadSizeBytes: number;
   requestTimeoutMs: number;
   tempRoot: string;
+  chromium: ChromiumRenderDefaults;
 }
 
 function parsePositiveInt(
@@ -24,6 +30,39 @@ function parsePositiveInt(
 
 function trimTrailingSlash(value: string): string {
   return value.replace(/\/+$/, "");
+}
+
+function parseBoolean(rawValue: string | undefined, fallback: boolean): boolean {
+  if (!rawValue) {
+    return fallback;
+  }
+
+  const normalized = rawValue.trim().toLowerCase();
+
+  if (["1", "true", "yes", "on"].includes(normalized)) {
+    return true;
+  }
+
+  if (["0", "false", "no", "off"].includes(normalized)) {
+    return false;
+  }
+
+  return fallback;
+}
+
+function parseOptionalString(rawValue: string | undefined): string | undefined {
+  const trimmed = rawValue?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function parseEmulatedMediaType(
+  rawValue: string | undefined,
+): ChromiumEmulatedMediaType {
+  const normalized = rawValue?.trim().toLowerCase();
+
+  return normalized === "print" || normalized === "screen"
+    ? normalized
+    : "screen";
 }
 
 function normalizeHttpUrl(value: string): string {
@@ -58,5 +97,23 @@ export function loadConfig(): AppConfig {
     ),
     requestTimeoutMs: parsePositiveInt(process.env.REQUEST_TIMEOUT_MS, 60_000),
     tempRoot: process.env.TEMP_ROOT ?? join(tmpdir(), "docpdf"),
+    chromium: {
+      emulatedMediaType: parseEmulatedMediaType(
+        process.env.CHROMIUM_EMULATED_MEDIA_TYPE,
+      ),
+      printBackground: parseBoolean(
+        process.env.CHROMIUM_PRINT_BACKGROUND,
+        true,
+      ),
+      skipNetworkAlmostIdleEvent: parseBoolean(
+        process.env.CHROMIUM_SKIP_NETWORK_ALMOST_IDLE_EVENT,
+        false,
+      ),
+      waitDelay: parseOptionalString(process.env.CHROMIUM_WAIT_DELAY),
+      failOnResourceLoadingFailed: parseBoolean(
+        process.env.CHROMIUM_FAIL_ON_RESOURCE_LOADING_FAILED,
+        false,
+      ),
+    },
   };
 }

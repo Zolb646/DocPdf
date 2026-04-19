@@ -1,6 +1,8 @@
 services:
   gotenberg:
-    image: gotenberg/gotenberg:8
+    build:
+      context: ./gotenberg
+    image: docpdf-gotenberg
     restart: unless-stopped
 
   back-end:
@@ -12,6 +14,11 @@ services:
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
       MAX_UPLOAD_SIZE_BYTES: ${MAX_UPLOAD_SIZE_BYTES:-26214400}
       REQUEST_TIMEOUT_MS: ${REQUEST_TIMEOUT_MS:-60000}
+      CHROMIUM_EMULATED_MEDIA_TYPE: ${CHROMIUM_EMULATED_MEDIA_TYPE:-screen}
+      CHROMIUM_PRINT_BACKGROUND: ${CHROMIUM_PRINT_BACKGROUND:-true}
+      CHROMIUM_SKIP_NETWORK_ALMOST_IDLE_EVENT: ${CHROMIUM_SKIP_NETWORK_ALMOST_IDLE_EVENT:-false}
+      CHROMIUM_WAIT_DELAY: ${CHROMIUM_WAIT_DELAY:-}
+      CHROMIUM_FAIL_ON_RESOURCE_LOADING_FAILED: ${CHROMIUM_FAIL_ON_RESOURCE_LOADING_FAILED:-false}
     depends_on:
       - gotenberg
     ports:

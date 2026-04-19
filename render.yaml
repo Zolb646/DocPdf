@@ -36,6 +36,14 @@ services:
         sync: false
       - key: CORS_ORIGIN
         sync: false
+      - key: CHROMIUM_EMULATED_MEDIA_TYPE
+        value: screen
+      - key: CHROMIUM_PRINT_BACKGROUND
+        value: "true"
+      - key: CHROMIUM_SKIP_NETWORK_ALMOST_IDLE_EVENT
+        value: "false"
+      - key: CHROMIUM_FAIL_ON_RESOURCE_LOADING_FAILED
+        value: "false"
       - key: MAX_UPLOAD_SIZE_BYTES
         value: "26214400"
       - key: REQUEST_TIMEOUT_MS
