@@ -20,6 +20,12 @@ function createConfig(tempRoot: string): AppConfig {
     maxUploadSizeBytes: 25 * 1024 * 1024,
     requestTimeoutMs: 60_000,
     tempRoot,
+    chromium: {
+      emulatedMediaType: "screen",
+      printBackground: true,
+      skipNetworkAlmostIdleEvent: false,
+      failOnResourceLoadingFailed: false,
+    },
   };
 }
 

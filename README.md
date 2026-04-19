@@ -21,6 +21,7 @@ Then open:
 - API health: [http://localhost:8787/api/health](http://localhost:8787/api/health)
 
 `gotenberg` stays private inside the compose network and is not published on the host.
+The local stack builds the same custom `gotenberg/Dockerfile` used by Render, including Microsoft Core Fonts for closer Office document fidelity.
 
 ## Local development
 
@@ -82,6 +83,8 @@ Notes:
 - The backend CORS setting now supports multiple origins and wildcard subdomains like `https://*.vercel.app`.
 - The Gotenberg Blueprint sets `API_PORT_FROM_ENV=PORT` so it binds to Render's runtime port instead of assuming port `3000`.
 - The Gotenberg Blueprint also enables `CHROMIUM_AUTO_START` and `LIBREOFFICE_AUTO_START` with longer startup timeouts so `/health` is more likely to pass on slow free instances.
+- The custom `gotenberg` image installs Microsoft Core Fonts for stronger Arial/Times/Courier fidelity. Calibri/Cambria remain layout-compatible through Carlito and Caladea unless you add your own licensed fonts.
+- Chromium file and URL conversions default to `screen` media, `printBackground=true`, and network-almost-idle waiting so web fonts and styles are more likely to match the browser view.
 - Free Render web services spin down on idle, so expect cold starts for both the API and Gotenberg.
 - This is fine for hobby/testing, but Gotenberg is publicly reachable in this setup.
 
@@ -112,6 +115,7 @@ Behavior:
 - On pull requests to `main`, it runs:
   - back-end: `bun test` and `bun run typecheck`
   - front-end: `bun run lint` and `bun run build`
+  - font smoke: builds the custom Gotenberg image, converts fixture documents, and inspects embedded fonts with `pdffonts`
 - On pushes to `main`, it runs the same CI checks and then:
   - triggers a Render deploy for the back-end when back-end files changed
   - triggers a Render deploy for the public Gotenberg web service when `gotenberg/` changed

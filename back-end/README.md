@@ -28,3 +28,14 @@ The API listens on [http://localhost:8787](http://localhost:8787).
   - It can be a comma-separated allowlist such as `http://localhost:3000,https://app.vercel.app,https://*.vercel.app`
 - `MAX_UPLOAD_SIZE_BYTES` defaults to `26214400`
 - `REQUEST_TIMEOUT_MS` defaults to `60000`
+- `CHROMIUM_EMULATED_MEDIA_TYPE` defaults to `screen`
+- `CHROMIUM_PRINT_BACKGROUND` defaults to `true`
+- `CHROMIUM_SKIP_NETWORK_ALMOST_IDLE_EVENT` defaults to `false`
+- `CHROMIUM_WAIT_DELAY` is optional and unset by default
+- `CHROMIUM_FAIL_ON_RESOURCE_LOADING_FAILED` defaults to `false`
+
+## Renderer notes
+
+- The repo-level Gotenberg image installs Microsoft Core Fonts to improve Arial, Times New Roman, and Courier New fidelity for LibreOffice conversions.
+- Calibri- and Cambria-class documents still rely on layout-compatible fallbacks such as Carlito and Caladea unless you supply your own licensed fonts.
+- Chromium conversions now default to `screen` media with `printBackground=true` and wait for the network to become almost idle before printing.

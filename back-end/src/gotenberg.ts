@@ -11,10 +11,21 @@ export interface HealthResult {
   details: unknown;
 }
 
+export type ChromiumEmulatedMediaType = "print" | "screen";
+
+export interface ChromiumRenderDefaults {
+  emulatedMediaType: ChromiumEmulatedMediaType;
+  printBackground: boolean;
+  skipNetworkAlmostIdleEvent: boolean;
+  waitDelay?: string;
+  failOnResourceLoadingFailed: boolean;
+}
+
 export interface GotenbergClientOptions {
   baseUrl: string;
   fetchImpl?: FetchImpl;
   timeoutMs: number;
+  chromium: ChromiumRenderDefaults;
 }
 
 function trimPdfExtension(value: string): string {
@@ -32,11 +43,13 @@ async function readErrorText(response: Response): Promise<string> {
 
 export class GotenbergClient {
   private readonly baseUrl: string;
+  private readonly chromium: ChromiumRenderDefaults;
   private readonly fetchImpl: FetchImpl;
   private readonly timeoutMs: number;
 
   constructor(options: GotenbergClientOptions) {
     this.baseUrl = options.baseUrl;
+    this.chromium = options.chromium;
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.timeoutMs = options.timeoutMs;
   }
@@ -75,6 +88,7 @@ export class GotenbergClient {
   async convertUrl(url: string, traceId: string, outputBaseName: string) {
     const formData = new FormData();
     formData.set("url", url);
+    this.applyChromiumRenderDefaults(formData);
 
     return this.sendPdfRequest(
       "/forms/chromium/convert/url",
@@ -91,6 +105,8 @@ export class GotenbergClient {
       formData.append("files", file, file.name);
     }
 
+    this.applyChromiumRenderDefaults(formData);
+
     return this.sendPdfRequest(
       "/forms/chromium/convert/html",
       formData,
@@ -105,6 +121,8 @@ export class GotenbergClient {
     for (const file of files) {
       formData.append("files", file, file.name);
     }
+
+    this.applyChromiumRenderDefaults(formData);
 
     return this.sendPdfRequest(
       "/forms/chromium/convert/markdown",
@@ -124,6 +142,23 @@ export class GotenbergClient {
       traceId,
       outputBaseName,
     );
+  }
+
+  private applyChromiumRenderDefaults(formData: FormData): void {
+    formData.set("emulatedMediaType", this.chromium.emulatedMediaType);
+    formData.set("printBackground", String(this.chromium.printBackground));
+    formData.set(
+      "skipNetworkAlmostIdleEvent",
+      String(this.chromium.skipNetworkAlmostIdleEvent),
+    );
+    formData.set(
+      "failOnResourceLoadingFailed",
+      String(this.chromium.failOnResourceLoadingFailed),
+    );
+
+    if (this.chromium.waitDelay) {
+      formData.set("waitDelay", this.chromium.waitDelay);
+    }
   }
 
   private async sendPdfRequest(

@@ -352,6 +352,10 @@ export default function PdfConverter() {
           <span className="converter-meta__value">{API_BASE_URL}</span>
         </p>
         <p>Processing is ephemeral. Files are deleted after the response is returned.</p>
+        <p>
+          Single-file HTML keeps custom fonts only when they are embedded or remotely
+          reachable. ZIP bundles still need root-level CSS, fonts, and assets.
+        </p>
       </div>
 
       {notice.kind !== "idle" ? (
