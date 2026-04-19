@@ -214,7 +214,7 @@ jobs:
         run: |
           set -euo pipefail
           curl --fail --silent --show-error --request POST \
-            "${RENDER_DEPLOY_HOOK_URL}?ref=${GITHUB_SHA}"
+            "${RENDER_DEPLOY_HOOK_URL}"
 
   deploy-render-gotenberg:
     name: Deploy Render Gotenberg
@@ -235,7 +235,7 @@ jobs:
         run: |
           set -euo pipefail
           curl --fail --silent --show-error --request POST \
-            "${RENDER_DEPLOY_HOOK_URL}?ref=${GITHUB_SHA}"
+            "${RENDER_DEPLOY_HOOK_URL}"
 
   deploy-vercel-frontend:
     name: Deploy Vercel front-end
