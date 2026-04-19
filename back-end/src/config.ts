@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 export interface AppConfig {
   port: number;
   gotenbergUrl: string;
-  corsOrigin: string;
+  corsOrigins: string[];
   maxUploadSizeBytes: number;
   requestTimeoutMs: number;
   tempRoot: string;
@@ -26,13 +26,32 @@ function trimTrailingSlash(value: string): string {
   return value.replace(/\/+$/, "");
 }
 
+function normalizeHttpUrl(value: string): string {
+  const trimmed = trimTrailingSlash(value.trim());
+
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+
+  return `http://${trimmed}`;
+}
+
+function parseOriginList(rawValue: string | undefined): string[] {
+  const values = (rawValue ?? "http://localhost:3000")
+    .split(",")
+    .map((value) => trimTrailingSlash(value.trim()))
+    .filter(Boolean);
+
+  return values.length > 0 ? values : ["http://localhost:3000"];
+}
+
 export function loadConfig(): AppConfig {
   return {
     port: parsePositiveInt(process.env.PORT, 8787),
-    gotenbergUrl: trimTrailingSlash(
+    gotenbergUrl: normalizeHttpUrl(
       process.env.GOTENBERG_URL ?? "http://gotenberg:3000",
     ),
-    corsOrigin: process.env.CORS_ORIGIN ?? "http://localhost:3000",
+    corsOrigins: parseOriginList(process.env.CORS_ORIGIN),
     maxUploadSizeBytes: parsePositiveInt(
       process.env.MAX_UPLOAD_SIZE_BYTES,
       25 * 1024 * 1024,

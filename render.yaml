@@ -1,0 +1,31 @@
+services:
+  - type: pserv
+    name: docpdf-gotenberg
+    runtime: docker
+    rootDir: gotenberg
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: starter
+    autoDeployTrigger: off
+
+  - type: web
+    name: docpdf-backend
+    runtime: node
+    rootDir: back-end
+    buildCommand: bun install --frozen-lockfile
+    startCommand: bun run start
+    healthCheckPath: /api/health
+    plan: free
+    autoDeployTrigger: off
+    envVars:
+      - key: GOTENBERG_URL
+        fromService:
+          type: pserv
+          name: docpdf-gotenberg
+          property: hostport
+      - key: CORS_ORIGIN
+        sync: false
+      - key: MAX_UPLOAD_SIZE_BYTES
+        value: "26214400"
+      - key: REQUEST_TIMEOUT_MS
+        value: "60000"
