@@ -1,29 +1,41 @@
 import PdfConverter from "@/app/components/pdf-converter";
 
+const PROOF_ITEMS = [
+  {
+    label: "Render split",
+    value: "Chromium + LibreOffice",
+  },
+  {
+    label: "Delivery",
+    value: "Instant download",
+  },
+  {
+    label: "Storage",
+    value: "Ephemeral cleanup",
+  },
+] as const;
+
 export default function Home() {
   return (
     <main className="page-shell">
       <section className="hero-grid">
         <div className="hero-copy">
           <p className="hero-copy__eyebrow">DocPDF / REST converter</p>
-          <h1>Turn public pages and working docs into clean PDFs in one pass.</h1>
-          <p className="hero-copy__lede">
-            Chromium handles web rendering. LibreOffice handles office documents. Every
-            request is stateless, immediate, and cleaned up after download.
-          </p>
-          <div className="hero-proof">
-            <div>
-              <span>Renderer split</span>
-              <strong>Chromium + LibreOffice</strong>
-            </div>
-            <div>
-              <span>Delivery model</span>
-              <strong>Instant download only</strong>
-            </div>
-            <div>
-              <span>Storage model</span>
-              <strong>Ephemeral by default</strong>
-            </div>
+          <p className="hero-copy__stamp">Public URLs + Working Docs</p>
+          <div className="hero-copy__body">
+            <h1>DocPDF turns public pages and working docs into sharp PDFs in one hit.</h1>
+            <p className="hero-copy__lede">
+              Chromium handles the web. LibreOffice handles office files. Every job is
+              stateless, fast, and cleared the moment the download finishes.
+            </p>
+          </div>
+          <div className="hero-proof" aria-label="Product highlights">
+            {PROOF_ITEMS.map((item) => (
+              <div key={item.label}>
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+              </div>
+            ))}
           </div>
         </div>
 

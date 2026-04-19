@@ -10,9 +10,7 @@ import {
 import {
   ACCEPTED_FILE_TYPES,
   API_BASE_URL,
-  FORMAT_GROUPS,
   PUBLIC_FILE_EXTENSIONS,
-  RAILS,
 } from "@/lib/supported-formats";
 
 type ConverterMode = "file" | "url";
@@ -26,6 +24,32 @@ type HealthState =
   | { kind: "checking"; message: string }
   | { kind: "online"; message: string }
   | { kind: "offline"; message: string };
+
+const FRIENDLY_RENDER_ERROR =
+  "The renderer could not process this file or page. Check the input and try again.";
+
+const SUPPORT_ROWS = [
+  {
+    label: "Web",
+    value: "Public URLs, HTML / HTM, flat ZIP bundles",
+  },
+  {
+    label: "Docs",
+    value: "DOCX, XLSX, PPTX, ODT, ODS, ODP, RTF, TXT",
+  },
+  {
+    label: "Rails",
+    value: "1 file, 25 MB max, public targets only, no saved history",
+  },
+  {
+    label: "Target",
+    value: API_BASE_URL,
+  },
+  {
+    label: "Trace",
+    value: "Trace IDs appear in notices when the renderer returns one.",
+  },
+] as const;
 
 async function fetchHealthStatus(
   setHealth: (value: HealthState) => void,
@@ -108,6 +132,37 @@ async function readErrorMessage(response: Response): Promise<{
   };
 }
 
+function normalizeErrorMessage(message: string): string {
+  const trimmed = message.replace(/\s+/g, " ").trim();
+
+  if (!trimmed) {
+    return FRIENDLY_RENDER_ERROR;
+  }
+
+  const htmlTagMatches = trimmed.match(/<\/?[a-z][^>]*>/gi) ?? [];
+  const angleBracketCount = (trimmed.match(/[<>]/g) ?? []).length;
+
+  if (
+    /<!doctype|<html|<body|<head|<script|<style|<title|<\/?[a-z][\s\S]*?>/i.test(
+      trimmed,
+    ) ||
+    htmlTagMatches.length >= 2 ||
+    angleBracketCount >= 4
+  ) {
+    return FRIENDLY_RENDER_ERROR;
+  }
+
+  return trimmed;
+}
+
+function createErrorNotice(message: string, traceId?: string): Notice {
+  return {
+    kind: "error",
+    message: normalizeErrorMessage(message),
+    traceId,
+  };
+}
+
 function formatBytes(size: number): string {
   if (size < 1024) {
     return `${size} B`;
@@ -170,26 +225,20 @@ export default function PdfConverter() {
 
     if (mode === "file") {
       if (!selectedFile) {
-        setNotice({
-          kind: "error",
-          message: "Choose one supported file before converting.",
-        });
+        setNotice(createErrorNotice("Choose one supported file before converting."));
         return;
       }
 
       if (!isSupportedFile(selectedFile)) {
-        setNotice({
-          kind: "error",
-          message:
+        setNotice(
+          createErrorNotice(
             "This upload is outside the published allowlist. Use HTML, ZIP HTML bundles, DOCX, XLSX, PPTX, ODT, ODS, ODP, RTF, or TXT.",
-        });
+          ),
+        );
         return;
       }
     } else if (!urlValue.trim()) {
-      setNotice({
-        kind: "error",
-        message: "Paste a public URL before converting.",
-      });
+      setNotice(createErrorNotice("Paste a public URL before converting."));
       return;
     }
 
@@ -203,11 +252,7 @@ export default function PdfConverter() {
 
       if (!response.ok) {
         const error = await readErrorMessage(response);
-        setNotice({
-          kind: "error",
-          message: error.message,
-          traceId: error.traceId,
-        });
+        setNotice(createErrorNotice(error.message, error.traceId));
         return;
       }
 
@@ -224,11 +269,11 @@ export default function PdfConverter() {
       });
       void fetchHealthStatus(setHealth);
     } catch {
-      setNotice({
-        kind: "error",
-        message:
+      setNotice(
+        createErrorNotice(
           "The request could not reach the API. Check that the back-end is running and that NEXT_PUBLIC_API_BASE_URL is correct.",
-      });
+        ),
+      );
       setHealth({
         kind: "offline",
         message: "API unreachable",
@@ -262,20 +307,20 @@ export default function PdfConverter() {
     mode === "file"
       ? isSubmitting
         ? "Converting file..."
-        : "Convert file to PDF"
+        : "Convert file"
       : isSubmitting
-        ? "Rendering page..."
-        : "Convert URL to PDF";
+        ? "Rendering URL..."
+        : "Convert URL";
 
   return (
     <div className="converter-shell">
       <div className="converter-topline">
         <div>
           <p className="converter-kicker">Conversion workspace</p>
-          <h2>Instant PDF export</h2>
+          <h2>Drop it. Paste it. Export it.</h2>
         </div>
-        <div className={`status-pill status-pill--${health.kind}`}>
-          <span className="status-pill__dot" />
+        <div className={`status-badge status-badge--${health.kind}`}>
+          <span className="status-badge__dot" />
           {health.message}
         </div>
       </div>
@@ -312,13 +357,11 @@ export default function PdfConverter() {
               onChange={handleFileChange}
             />
             <span className="dropzone__eyebrow">One file, 25 MB max</span>
-            <strong>
-              {selectedFile ? selectedFile.name : "Drop a document or browse"}
-            </strong>
+            <strong>{selectedFile ? selectedFile.name : "Drop a file or browse"}</strong>
             <span>
               {selectedFile
                 ? `${formatBytes(selectedFile.size)} ready for conversion`
-                : "HTML, ZIP HTML bundles, DOCX, XLSX, PPTX, ODT, ODS, ODP, RTF, TXT"}
+                : "HTML, ZIP bundles, DOCX, XLSX, PPTX, ODT, ODS, ODP, RTF, TXT"}
             </span>
           </label>
         ) : (
@@ -335,8 +378,8 @@ export default function PdfConverter() {
               }}
             />
             <small>
-              Localhost, authenticated pages, and private network targets are blocked in
-              v1.
+              Public targets only. Localhost, private networks, and auth walls are
+              blocked.
             </small>
           </label>
         )}
@@ -346,61 +389,32 @@ export default function PdfConverter() {
         </button>
       </form>
 
-      <div className="converter-meta">
-        <p>
-          Browser target:
-          <span className="converter-meta__value">{API_BASE_URL}</span>
-        </p>
-        <p>Processing is ephemeral. Files are deleted after the response is returned.</p>
-        <p>
-          Single-file HTML keeps custom fonts only when they are embedded or remotely
-          reachable. ZIP bundles still need root-level CSS, fonts, and assets.
-        </p>
-      </div>
-
       {notice.kind !== "idle" ? (
         <div
           className={`notice notice--${notice.kind}`}
           role={notice.kind === "error" ? "alert" : "status"}>
-          <p>{notice.message}</p>
-          {"filename" in notice ? (
-            <p className="notice__detail">Downloaded: {notice.filename}</p>
-          ) : null}
-          {notice.traceId ? (
-            <p className="notice__detail">Trace: {notice.traceId}</p>
+          <p className="notice__message">{notice.message}</p>
+          {"filename" in notice || notice.traceId ? (
+            <div className="notice__meta">
+              {"filename" in notice ? (
+                <p className="notice__detail">Downloaded: {notice.filename}</p>
+              ) : null}
+              {notice.traceId ? (
+                <p className="notice__detail">Trace: {notice.traceId}</p>
+              ) : null}
+            </div>
           ) : null}
         </div>
       ) : null}
 
-      <div className="detail-columns">
-        <div className="detail-block">
-          <p className="converter-kicker">Published support</p>
-          {FORMAT_GROUPS.map((group) => (
-            <div key={group.title} className="detail-block__group">
-              <h3>{group.title}</h3>
-              <ul>
-                {group.items.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-
-        <div className="detail-block">
-          <p className="converter-kicker">Guardrails</p>
-          <ul>
-            {RAILS.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-          <div className="endpoint-strip">
-            <span>POST /api/convert/file</span>
-            <span>POST /api/convert/url</span>
-            <span>GET /api/health</span>
+      <dl className="converter-footer">
+        {SUPPORT_ROWS.map((row) => (
+          <div key={row.label} className="converter-footer__row">
+            <dt>{row.label}</dt>
+            <dd>{row.value}</dd>
           </div>
-        </div>
-      </div>
+        ))}
+      </dl>
     </div>
   );
 }

@@ -133,6 +133,40 @@ describe("DocPDF API", () => {
     expect(await readdir(tempRoot)).toEqual([]);
   });
 
+  it("returns friendly JSON when the renderer responds with an HTML error page", async () => {
+    const tempRoot = await createTempRoot();
+    tempRoots.push(tempRoot);
+    const app = createApp(createConfig(tempRoot), {
+      gotenbergFetch: async () =>
+        new Response("<!doctype html><html><body>renderer down</body></html>", {
+          status: 500,
+          headers: {
+            "Content-Type": "text/html",
+          },
+        }),
+    });
+
+    const response = await app.request("/api/convert/url", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ url: "https://example.com/report" }),
+    });
+    const payload = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("content-type")).toContain("application/json");
+    expect(payload).toMatchObject({
+      code: "RENDERER_UNAVAILABLE",
+      message:
+        "The PDF renderer is unavailable right now. Please try again in a moment.",
+    });
+    expect(typeof payload.traceId).toBe("string");
+    expect(payload.traceId.length).toBeGreaterThan(10);
+    expect(payload.message).not.toContain("<html");
+  });
+
   it("rejects nested ZIP bundles", async () => {
     const tempRoot = await createTempRoot();
     tempRoots.push(tempRoot);
