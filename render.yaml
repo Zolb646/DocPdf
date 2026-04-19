@@ -1,11 +1,12 @@
 services:
-  - type: pserv
+  - type: web
     name: docpdf-gotenberg
     runtime: docker
     rootDir: gotenberg
     dockerfilePath: ./Dockerfile
     dockerContext: .
-    plan: starter
+    healthCheckPath: /health
+    plan: free
     autoDeployTrigger: off
 
   - type: web
@@ -19,10 +20,7 @@ services:
     autoDeployTrigger: off
     envVars:
       - key: GOTENBERG_URL
-        fromService:
-          type: pserv
-          name: docpdf-gotenberg
-          property: hostport
+        sync: false
       - key: CORS_ORIGIN
         sync: false
       - key: MAX_UPLOAD_SIZE_BYTES

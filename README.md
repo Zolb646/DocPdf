@@ -4,7 +4,7 @@ REST-first PDF conversion app built from:
 
 - `front-end`: Next.js 16 UI
 - `back-end`: Bun + Hono API
-- `gotenberg`: private renderer container for Chromium and LibreOffice conversion
+- `gotenberg`: renderer container for Chromium and LibreOffice conversion
 
 ## Docker stack
 
@@ -46,7 +46,7 @@ The frontend reads `NEXT_PUBLIC_API_BASE_URL` at build/dev time. If you run the 
 
 This repo is set up for a split deployment:
 
-- Render hosts the API plus a private Gotenberg service.
+- Render hosts the API plus a public free Gotenberg web service.
 - Vercel hosts the Next.js frontend.
 - GitHub Actions can run CI and trigger production deploys after checks pass.
 
@@ -55,9 +55,18 @@ This repo is set up for a split deployment:
 Use the root [render.yaml](./render.yaml) as a Blueprint in Render. It creates:
 
 - `docpdf-backend` as a public web service
-- `docpdf-gotenberg` as a private service on Render's internal network
+- `docpdf-gotenberg` as a public free web service
 
-During Blueprint setup, Render will prompt for `CORS_ORIGIN`.
+During Blueprint setup, Render will prompt for:
+
+- `GOTENBERG_URL`
+- `CORS_ORIGIN`
+
+If you keep the default Gotenberg service name from the Blueprint, use:
+
+```text
+https://docpdf-gotenberg.onrender.com
+```
 
 Use a comma-separated allowlist such as:
 
@@ -67,9 +76,12 @@ http://localhost:3000,https://your-frontend.vercel.app,https://*.vercel.app
 
 Notes:
 
-- `GOTENBERG_URL` is wired automatically from the private Gotenberg service.
-- The backend accepts either a full URL like `http://service:3000` or a Render-style internal `host:port`.
+- In this free/free setup, the back-end must call Gotenberg over its public `onrender.com` URL.
+- Render's docs note that free web services cannot receive private-network traffic, which is why this setup does not use `fromService.hostport`.
+- The backend accepts either a full URL like `https://service.onrender.com` or a Render-style internal `host:port`.
 - The backend CORS setting now supports multiple origins and wildcard subdomains like `https://*.vercel.app`.
+- Free Render web services spin down on idle, so expect cold starts for both the API and Gotenberg.
+- This is fine for hobby/testing, but Gotenberg is publicly reachable in this setup.
 
 ### 2. Deploy the Vercel side
 
@@ -100,7 +112,7 @@ Behavior:
   - front-end: `bun run lint` and `bun run build`
 - On pushes to `main`, it runs the same CI checks and then:
   - triggers a Render deploy for the back-end when back-end files changed
-  - triggers a Render deploy for the private Gotenberg service when `gotenberg/` changed
+  - triggers a Render deploy for the public Gotenberg web service when `gotenberg/` changed
   - builds and deploys the front-end to Vercel when front-end files changed
 
 Required GitHub repository secrets:
@@ -129,4 +141,3 @@ How to get the Render secrets:
 2. Go to `Settings`.
 3. Copy the deploy hook URL for `docpdf-backend`.
 4. Copy the deploy hook URL for `docpdf-gotenberg`.
-# DocPdf
