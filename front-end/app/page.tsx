@@ -23,10 +23,11 @@ export default function Home() {
           <p className="hero-copy__eyebrow">DocPDF / REST converter</p>
           <p className="hero-copy__stamp">Public URLs + Working Docs</p>
           <div className="hero-copy__body">
-            <h1>DocPDF turns public pages and working docs into sharp PDFs in one hit.</h1>
+            <h1>Public pages in. Sharp PDFs out.</h1>
             <p className="hero-copy__lede">
-              Chromium handles the web. LibreOffice handles office files. Every job is
-              stateless, fast, and cleared the moment the download finishes.
+              Paste a public URL or drop a working document. Chromium handles the web,
+              LibreOffice handles office files, and every conversion is cleared after
+              download.
             </p>
           </div>
           <div className="hero-proof" aria-label="Product highlights">
