@@ -317,7 +317,7 @@ export default function PdfConverter() {
       <div className="converter-topline">
         <div>
           <p className="converter-kicker">Conversion workspace</p>
-          <h2>Drop it. Paste it. Export it.</h2>
+          <h2>Convert a file or public URL.</h2>
         </div>
         <div className={`status-badge status-badge--${health.kind}`}>
           <span className="status-badge__dot" />
